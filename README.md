@@ -1,6 +1,6 @@
 **THIS IS NOT PRODUCTION CODE** :)
 
-We wanted to go over the interesting ideas in the post [Algebraic effects for the rest of us](https://overreacted.io/algebraic-effects-for-the-rest-of-us/) by Dan Abramov, where he explains what are algebraic effects and how they might be implemented in a futuristic version of ES.
+We wanted to go over the interesting ideas in the post [Algebraic effects for the rest of us](https://overreacted.io/algebraic-effects-for-the-rest-of-us/) by Dan Abramov, where he explains what algebraic effects are and how they might be implemented in a futuristic version of ES.
 
 In this document we hope to go over use cases that can benefit from such a solution and see how far we can go in implementing a mechanism that would work today (**not for production obviously**).
 
