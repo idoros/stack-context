@@ -1,4 +1,4 @@
-**THIS IS NOT PRODUCTION CODE**
+**THIS IS NOT PRODUCTION CODE** :)
 
 We wanted to go over the interesting ideas in the post [Algebraic effects for the rest of us](https://overreacted.io/algebraic-effects-for-the-rest-of-us/) by Dan Abramov, where he explains what are algebraic effects and how they might be implemented in a futuristic version of ES.
 
