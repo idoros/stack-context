@@ -1,20 +1,33 @@
 **THIS IS NOT PRODUCTION CODE**
 
-An exercise on the mechanism from the interesting post [Algebraic effects for the rest of us](https://overreacted.io/algebraic-effects-for-the-rest-of-us/) by Dan Abramov.
+We wanted to go over the interesting ideas in the post [Algebraic effects for the rest of us](https://overreacted.io/algebraic-effects-for-the-rest-of-us/) by Dan Abramov, where he explains what are algebraic effects and how they might be implemented in a futuristic version of ES.
 
-## What does it do?
+In this document we hope to go over use cases that can benefit from such a solution and see how far we can go in implementing a mechanism that would work today (**not for production obviously**).
 
-Putting aside the specific `try/catch` like syntax that Dan choose, what we have is some code at the top of the stack providing "stuff" for the executed code in a lower part of the stack, with no direct intervention of the steps between them.
+-----
 
-There are other similar mechanisms that we use that do the same thing. Generally this sounds like dependency Injection that passes "stuff" down to parts of the application.
+# The use case
+// ToDo: add context use case
 
-**Passing down through what?**
+-----
 
-While dependency injection is implemented in many ways, Dan specifically talks about passing down the call stack, unlike React Context that passes down the rendering tree, our mechanism provides information through the execution stack.
+# Solution...
+
+## The basic
+
+In the post, the feature is using `try/perform/handle` extending on the principles of `try/throw/catch`, but differ slightly - while the stack between the `throw` and `catch` is stopped and discarded, the stack between the `perform` and `handle` can be rolled back and resolved using a `resume` keyword.
+
+Essentially, allowing the executed code to request "stuff" from a higher call in the execution stack, without having any special handling in the levels between them.
+
+Sounds like how React context passes from provider to consumer through the rendering tree, but instead of "components" listening to the context, we have "call executions" that can access some "context" API.
+
+> extra thought: it might seems like React components are somehow more stateful or exist longer in time, but a call execution has arguments like props, variables that can change like state and can stay alive and updating for as long as they are referenced.
+
+So we need to be able to add and read information to a "context" that will extend any previous "context" that was provided along the execution stack.
 
 ## Can we create a polyfill?
 
-While Dan's hypothetical syntax relies on traveling up the stack through a mechanism like `try/catch/throw` cannot be implemented with JavaScript *(there is no way back once we throw)*, we can absolutely run code in a closure up the stack today, and we do it all the time through callbacks.
+While we can't build on top of the `try/catch/throw` concept with JavaScript *(no way back from throw)*, we can absolutely run code in a closure up the stack today, and we do it all the time through callbacks.
 
 Let's imagine the runtime providing us with a magical `stackContext` keyword that allows us to request values from whoever executed our code:
 
