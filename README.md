@@ -102,9 +102,9 @@ If such an ability would be implemented into the language (in 2025), it would be
 
 The big issue with this type of injection is asynchronous code, since our context is constructed out of the running call stack, any function that is delayed, is essentially disconnected from our `stackContext` value.
 
-To be honest, I'm a little bit of unsure what the behavior of the async example is - when the `perform` is delayed, is everything suspended until the `resume with` is called?
+To be honest, I'm a little bit of unsure what's the behavior of the async example in the post - when the `perform` is delayed, is everything suspended until the `resume with` is called?
 
-Anyway, we can do an ugly manual patch the context value back into the execution once it resumes:
+In our case we have no special new ECMA feature, so the context acts like normal execution, and we can provide a way to do an ugly manual patch to the context back into the execution once it resumes:
 
 ```js
 readContext(async (stackContext, user) => {
@@ -116,7 +116,7 @@ readContext(async (stackContext, user) => {
 })
 ```
 
-> This is far from perfect, and it requires unrelated async methods to "play along" if they are in the path of our context : (
+> Unfortunately this requires unrelated async methods to "play along" if they are in the path of our context :(
 
 On the other hand, rolling back the context down the stack can probably be handled automatically (also error handling).
 
