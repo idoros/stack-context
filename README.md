@@ -108,10 +108,9 @@ In our case we have no special new ECMA feature, so the context acts like normal
 
 ```js
 readContext(async (stackContext, user) => {
-    const contextStack = stackContext
     await goDoSomethingForAWhile()
     // special method to patch back the context
-    stackContext[continueWithAsync](contextStack)
+    stackContext[continueAsync]()
     // ...continue running code from the same context
 })
 ```
