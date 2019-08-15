@@ -4,41 +4,42 @@ We wanted to go over the interesting ideas in the post [Algebraic effects for th
 
 In this document we hope to go over use cases that can benefit from such a solution and see how far we can go in implementing a mechanism that would work today (**not for production obviously**).
 
------
+---
 
 # The use case
+
 // ToDo: add context use case
 
------
+---
 
 # Solution...
 
 ## The basic
 
-In the post, the feature is using `try/perform/handle` extending on the principles of `try/throw/catch`, but differ slightly - while the stack between the `throw` and `catch` is stopped and discarded, the stack between the `perform` and `handle` can be rolled back and resolved using a `resume` keyword.
+In the post, the feature is using `try/perform/handle` extending on the principles of `try/throw/catch`, but differ slightly - while the stack between the `throw` and `catch` is stopped and discarded, the stack between the `perform` and `handle` can be rolled back and resolved using a `resume with` keyword.
 
 Essentially, allowing the executed code to request "stuff" from a higher call in the execution stack, without having any special handling in the levels between them.
 
 Sounds like how React context passes from provider to consumer through the rendering tree, but instead of "components" listening to the context, we have "call executions" that can access some "context" API.
 
-> extra thought: it might seems like React components are somehow more stateful or exist longer in time, but a call execution has arguments like props, variables that can change like state and can stay alive and updating for as long as they are referenced.
+> **extra thought:** it might seems like React components are somehow more stateful or exist longer in time, but a call execution has arguments like props, variables that can change like state and can stay alive and updating for as long as they are referenced.
 
 So we need to be able to add and read information to a "context" that will extend any previous "context" that was provided along the execution stack.
 
 ## Can we create a polyfill?
 
-While we can't build on top of the `try/catch/throw` concept with JavaScript *(no way back from throw)*, we can absolutely run code in a closure up the stack today, and we do it all the time through callbacks.
+While we can't build on top of the `try/catch/throw` concept with JavaScript _(no way back from throw)_, we can absolutely run code in a closure up the stack today, and we do it all the time through callbacks.
 
 Let's imagine the runtime providing us with a magical `stackContext` keyword that allows us to request values from whoever executed our code:
 
 ```js
 // consume
 function getName(user) {
-  let name = user.name;
-  if (name === null) {
-  	name = stackContext.askName();
-  }
-  return name;
+    let name = user.name
+    if (name === null) {
+        name = stackContext.askName()
+    }
+    return name
 }
 // provide
 function app() {
@@ -48,75 +49,82 @@ function app() {
 }
 ```
 
-Now we need to figure out where the `stackContext` reference comes from. We can wrap our consumer/provider functions with something that will provide it as an argument and make sure to pass it along:
+Now we need to figure out where the `stackContext` reference comes from. We can wrap our context functions with something that provides the context as an argument, accepts modifications to create an extended context and pass it down the stack:
 
 ```js
-// consume
-const getName = readContext((stackContext, user) => {
-  let name = user.name;
-  if (name === null) {
-  	name = stackContext.askName();
-  }
-  return name;
-});
-// provide
-const app = writeContext((stackContext) => {
+// consumer
+const getName = context((stackContext, user) => {
+    let name = user.name
+    if (name === null) {
+        name = stackContext.askName()
+    }
+    return name
+})
+// provider
+const app = context(stackContext => {
     stackContext.askName = () => {
         return 'Arya Stark'
     }
 })
 ```
 
-> Notice that unlike Dan's syntax, we are no longer calling a generic `perform`, although we could similarly decide to place a perform function, call it, and have the intercepting provider decide if it wants to do something with our data or pass it along.
-
-### What should be passed?
-
-Theoretically anything can be passed, however to avoid namespace issues and mutations we should probably stick to key `Symbols` and function values.
+> Notice that we have a slightly different API then the original post, we are no longer calling a generic `perform` that would propagate through the `try/handle` chain. Instead we have a context data that we access.
+>
+> Theoretically anything can be passed, however to avoid namespace issues and mutations we use symbol keys to function values.
 
 ## Types?
 
-Basic types in our closure are easy since we actually have the parameter to type:
+Since our polyfill already has a first argument for the context data, then we might as well slap a type to it:
 
 ```ts
 const getName = Symbol('get-name')
 interface NamesApi {
     [getName](): string
 }
-readContext((stackContext: NamesApi, user) => {
+context((stackContext: NamesApi) => {
+    // read
     stackContext[getName] // $ExpectType () => string
-})
-writeContext((stackContext: NamesApi) => {
-    stackContext[getName] // $ExpectType () => string
+    stackContext[getName]() // $ExpectType string
+    // extend for nested stack calls
+    stackContext[getName] = () => {
+        /*contextual name*/
+    }
 })
 ```
 
-The types that we are missing is the contextual types that are required by the code that we execute. That means that when we run a function, we cannot know what `stackContext` will be required down the line.
+> **extra thought:** borrowing from Typescript [(`this: T`) => {}](https://www.typescriptlang.org/docs/handbook/functions.html#this-parameters) parameter syntax, it might be possible to add the polyfill at transpile.
+>
+> **also**: knowing that a function will need a specific context type might... maybe... allow to statically suggest missing or mismatched context values... at marked top level execution points...
+
+If such an ability would be implemented into the language (in 2025), it would be nice to have the `stackContext` available without adding it to the argument list. However types would still benefit from having the type.
 
 ## Async?
 
 The big issue with this type of injection is asynchronous code, since our context is constructed out of the running call stack, any function that is delayed, is essentially disconnected from our `stackContext` value.
 
-What we can do is patch the context value back into the execution once it resumes:
+To be honest, I'm a little bit of unsure what the behavior of the async example is - when the `perform` is delayed, is everything suspended until the `resume with` is called?
+
+Anyway, we can do an ugly manual patch the context value back into the execution once it resumes:
 
 ```js
 readContext(async (stackContext, user) => {
     const contextStack = stackContext
     await goDoSomethingForAWhile()
     // special method to patch back the context
-    stackContext.asyncContinueWith(contextStack)
+    stackContext[continueWithAsync](contextStack)
     // ...continue running code from the same context
 })
 ```
 
-This is far from perfect, and it requires unrelated async methods to "play along" if they are in the path of our context. However, To be honest, Dan wrote about this, but I cannot grasp what would actually happen in his example, where he delayed the response also (is everything suspended until the the `resume` is called?).
+> This is far from perfect, and it requires unrelated async methods to "play along" if they are in the path of our context : (
 
-## Talking hypothetical
+On the other hand, rolling back the context down the stack can probably be handled automatically (also error handling).
 
-If such a feature would be implemented into the language, it would be nice to have the `stackContext` available without adding it to the argument list. And borrowing from Typescript [this parameter](https://www.typescriptlang.org/docs/handbook/functions.html#this-parameters) syntax, it could be optionally added for type definition and removed in compilation.
+## Top level context?
 
-Looking at Dan's example there is one thing that is not possible with this version. Dan starts the execution directly in the root of the module and provides the requested values through a `catch` like mechanism.
+In the post examples, `try/handle` is used directly on the module top level. We avoided touching a `stackContext` on our top level because our polyfill is implemented by wrapping functions and providing them with a context API.
 
-This is not possible with our solution since we have no top level function. However, in a hypothetical world a module defining a top level `stackContext` could be considered to provide a default value context for the functions that are defined within it:
+This is harder to do with the solution we have, since we have no simple way to wrap the module execution function. However, in a hypothetical world a module defining a top level `stackContext` could be used to provide a default value context for the functions that are defined within it:
 
 ```js
 export const generateUniqueId = Symbol('gen-id')
