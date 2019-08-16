@@ -107,7 +107,7 @@ To be honest, I'm a little bit of unsure what's the behavior of the async exampl
 In our case we have no special new ECMA feature, so the context acts like normal execution, and we can provide a way to do an ugly manual patch to the context back into the execution once it resumes:
 
 ```js
-readContext(async (stackContext, user) => {
+context(async (stackContext) => {
     await goDoSomethingForAWhile()
     // special method to patch back the context
     stackContext[continueAsync]()
@@ -130,7 +130,7 @@ export const generateUniqueId = Symbol('gen-id')
 // default generator
 stackContext[generateUniqueId] = new UniqueIdFactory()
 // use the context
-export const doSomething = readContext((stackContext) => {
+export const doSomething = context((stackContext) => {
     // get from call stack or fallback to module default
     const uniqueId = stackContext[generateUniqueId]()
 }
